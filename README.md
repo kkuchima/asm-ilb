@@ -134,8 +134,13 @@ istioctl install -f asm/cluster/istio-operator.yaml \
     --set values.telemetry.v2.stackdriver.logging=true \
     --set values.telemetry.v2.stackdriver.outboundAccessLogging=FULL \
     --set meshConfig.outboundTrafficPolicy.mode=ALLOW_ANY \
-    -f asm-ilb/istio-configuration/ilbgateway.yaml
-    -f envoy-stdout.yaml
+    -f asm-ilb/istio-configuration/ilb-gateway.yaml
+```
+
+### istio-system namespace 内の Pod が Running 状態になっていることを確認
+
+```bash
+kubectl get pods -n istio-system -w
 ```
 
 ### 対象 Namespace に対して envoy auto-injection を有効化
@@ -147,10 +152,11 @@ kubectl label namespace default istio-injection- istio.io/rev=asm-1611-1 --overw
 ### サンプルアプリのデプロイ
 
 ```bash
-kubectl apply -f sample-app/
+kubectl apply -f asm-ilb/sample-app/
 ```
 
-Istio の Authorization Policy は特定 IP アドレスからのみ許可するようにしておきます：  
+※(Paste不要)Istio の Authorization Policy は特定 IP アドレスからのみ許可するようにしておきます  
+（以下の例では後述のテスト用ホスト2のIPアドレスを指定)：  
 ```
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
@@ -168,37 +174,50 @@ spec:
        ipBlocks: ["10.148.0.7/32"]
 ```
 
+### クライアントIP保持の設定
+```bash
+kubectl patch svc istio-ingressgateway -n istio-system -p '{"spec":{"externalTrafficPolicy":"Local"}}'
+```
+
 ## 疎通テスト
 
 ### Istio-ingressgateway Service の IP アドレス を確認
 
 ```bash
 kubectl get svc istio-ingressgateway -n istio-system
-NAME                   TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)                                      AGE
-istio-ingressgateway   LoadBalancer   10.120.5.46   10.148.0.13   15020:30612/TCP,80:32527/TCP,443:32133/TCP   138m
 
+### 出力例:
+### NAME                   TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                                      AGE
+### istio-ingressgateway   LoadBalancer   10.120.5.102   10.148.0.18   15020:30624/TCP,80:30319/TCP,443:31027/TCP   3m36s
 ```
 
 ### 同一 VPC 内ホスト 1 (NG パターン)
-
+同一VPCの同一リージョン内ホスト1に SSH し、 Istio-ingressgateway の External IP アドレス宛てに curl を発行する。
 ```bash
-kuchima@ilb-south-4:~$ hostname -i
-10.20.0.2
-kuchima@ilb-south-4:~$ curl 10.148.0.13/headers -s -o /dev/null -w "%{http_code}\n"
-403
+hostname -i
+### 出力例:
+### 10.20.0.2
+
+curl 10.148.0.18/headers -s -o /dev/null -w "%{http_code}\n"
+### 出力例:
+### 403
 ```
 
 ### 同一 VPC 内ホスト 2 (OK パターン)
-
+同一VPCの同一リージョン内ホスト1に SSH し、 Istio-ingressgateway の External IP アドレス宛てに curl を発行する。
 ```bash
-kuchima@ilb-south:~$ hostname -i
-10.148.0.7
-kuchima@ilb-south:~$ curl 10.148.0.13/headers -s -o /dev/null -w "%{http_code}\n"
-200
+hostname -i
+### 出力例:
+### 10.148.0.7
+
+curl 10.148.0.18/headers -s -o /dev/null -w "%{http_code}\n"
+### 出力例:
+### 200
 ```
 
-### Envoy Access Log
+### Envoy Access Log の確認
 ```bash
+### 中略
 [2020-11-02T10:57:38.134Z] "GET /headers HTTP/1.1" 200 - "-" "-" 0 864 3 2 "10.148.0.7" "curl/7.64.0" "3eb282bc-8d3a-934a-959f-7938da6a748a" "10.148.0.13" "10.56.0.9:80" outbound|80|v1|httpbin-service.default.svc.cluster.local 10.56.0.8:44144 10.56.0.8:80 10.148.0.7:36670 - -
 [2020-11-02T10:57:41.859Z] "GET /headers HTTP/1.1" 403 - "-" "-" 0 19 0 - "10.20.0.2" "curl/7.64.0" "ede32dca-1417-9f2e-949f-2cb79f34adb2" "10.148.0.13" "-" - - 10.56.0.8:80 10.20.0.2:56314 - -
 ```
