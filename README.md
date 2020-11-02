@@ -217,7 +217,9 @@ curl 10.148.0.18/headers -s -o /dev/null -w "%{http_code}\n"
 
 ### Envoy Access Log の確認
 ```bash
-### 中略
+kubectl logs istio-ingressgateway-66fbcbc9ff-5vd27 -n istio-system
+
+### 中略 以下出力例:
 [2020-11-02T10:57:38.134Z] "GET /headers HTTP/1.1" 200 - "-" "-" 0 864 3 2 "10.148.0.7" "curl/7.64.0" "3eb282bc-8d3a-934a-959f-7938da6a748a" "10.148.0.13" "10.56.0.9:80" outbound|80|v1|httpbin-service.default.svc.cluster.local 10.56.0.8:44144 10.56.0.8:80 10.148.0.7:36670 - -
 [2020-11-02T10:57:41.859Z] "GET /headers HTTP/1.1" 403 - "-" "-" 0 19 0 - "10.20.0.2" "curl/7.64.0" "ede32dca-1417-9f2e-949f-2cb79f34adb2" "10.148.0.13" "-" - - 10.56.0.8:80 10.20.0.2:56314 - -
 ```
