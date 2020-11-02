@@ -1,0 +1,10 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: httpbin-destination-rule
+spec:
+  host: httpbin-service
+  subsets:
+  - name: v1
+    labels:
+      app: httpbin

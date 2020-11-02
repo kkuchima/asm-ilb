@@ -1,0 +1,17 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: httpbin-virtual-service
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - httpbin-gateway
+  - mesh
+  http:
+  - retries:
+      attempts: 10
+    route:
+    - destination:
+        host: httpbin-service
+        subset: v1
