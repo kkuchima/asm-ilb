@@ -14,12 +14,12 @@ https://cloud.google.com/service-mesh/docs/install
 export GCP_EMAIL_ADDRESS=$(gcloud auth list --filter=status:ACTIVE \
   --format="value(account)")
 export PROJECT_ID=$(gcloud config list --format   "value(core.project)")
-export PROJECT_NUMBER=\$(gcloud projects describe \${PROJECT_ID}   --format="value(projectNumber)")
+export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID}   --format="value(projectNumber)")
 export CLUSTER_NAME=ilb-kuchima
 export CLUSTER_LOCATION=asia-southeast1-a
 export CLUSTER_REGION=asia-southeast1
-export WORKLOAD_POOL=\${PROJECT_ID}.svc.id.goog
-export MESH_ID="proj-\${PROJECT_NUMBER}"
+export WORKLOAD_POOL=${PROJECT_ID}.svc.id.goog
+export MESH_ID="proj-${PROJECT_NUMBER}"
 export CHANNEL="regular"
 export GCP_EMAIL_ADDRESS=$(gcloud auth list --filter=status:ACTIVE   --format="value(account)")
 export ENVIRON_PROJECT_NUMBER=$PROJECT_NUMBER
@@ -27,7 +27,7 @@ export POD_CIDR="10.56.0.0/14"
 export POD_CIDR_NAME="pods"
 export SVCS_CIDR="10.120.0.0/20"
 
-gcloud config set compute/zone \${CLUSTER_LOCATION}
+gcloud config set compute/zone ${CLUSTER_LOCATION}
 ```
 
 ### API の有効化
@@ -99,11 +99,12 @@ kubectl create clusterrolebinding cluster-admin-binding   --clusterrole=cluster-
 ### インストール資源のダウンロード
 
 ```bash
-curl -LO https://storage.googleapis.com/gke-release/asm/istio-1.6.11-asm.1-linux-amd64.tar.gz
+export ASM_VERSION=istio-1.6.11-asm.1
+curl -LO https://storage.googleapis.com/gke-release/asm/${ASM_VERSION}-linux-amd64.tar.gz
 
-tar xzf istio-1.6.11-asm.1-linux-amd64.tar.gz
+tar xzf ${ASM_VERSION}-linux-amd64.tar.gz
 
-cd istio-1.6.11-asm.1
+cd ${ASM_VERSION}
 export PATH=$PWD/bin:$PATH
 ```
 
@@ -118,12 +119,13 @@ kpt cfg set asm gcloud.core.project ${PROJECT_ID}
 kpt cfg set asm gcloud.compute.location ${CLUSTER_LOCATION}
 kpt cfg set asm gcloud.project.environProjectNumber ${ENVIRON_PROJECT_NUMBER}
 kpt cfg set asm anthos.servicemesh.profile asm-gcp
-
 ```
 
 ### ASM インストール w/ Internal LB
 
 ```bash
+git clone https://github.com/kkuchima/asm-ilb
+
 istioctl install -f asm/cluster/istio-operator.yaml \
     --revision=asm-1611-1 \
     --set values.global.proxy.tracer=stackdriver \
@@ -132,7 +134,8 @@ istioctl install -f asm/cluster/istio-operator.yaml \
     --set values.telemetry.v2.stackdriver.logging=true \
     --set values.telemetry.v2.stackdriver.outboundAccessLogging=FULL \
     --set meshConfig.outboundTrafficPolicy.mode=ALLOW_ANY \
-    -f istio-configuration/
+    -f asm-ilb/istio-configuration/ilbgateway.yaml
+    -f envoy-stdout.yaml
 ```
 
 ### 対象 Namespace に対して envoy auto-injection を有効化
